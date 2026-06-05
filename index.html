@@ -438,10 +438,13 @@ function buildMap() {
       ? filterFeaturePolygons(rawFeat, 0.3)
       : (feat || rawFeat);
     const c = mainPath.centroid(centFeat);
+    // 隣接県と重なるラベルの個別オフセット（px）
+    const LABEL_OFFSET = { nagasaki: 10, ishikawa: -8 };
+    const yOff = LABEL_OFFSET[pref.id] || 0;
     if (!isNaN(c[0]) && isFinite(c[0])) {
       // 白縁取りで県名を目立たせる（paint-order: stroke で白縁が fill の下に描画される）
       labelGroup.append('text')
-        .attr('x', c[0]).attr('y', c[1] * SCALE_Y + 3)
+        .attr('x', c[0]).attr('y', c[1] * SCALE_Y + 3 + yOff)
         .attr('text-anchor', 'middle')
         .attr('font-size', isActive ? '11px' : '9px')
         .attr('font-weight', isActive ? 'bold' : 'normal')
