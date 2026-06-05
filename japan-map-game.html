@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>にほんちずゲーム</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: linear-gradient(160deg, #c8e6ff 0%, #d4f5c8 100%);
+  font-family: 'Rounded Mplus 1c', 'Hiragino Maru Gothic Pro', 'BIZ UDPGothic', Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 6px;
+  user-select: none;
+}
+
+.title {
+  font-size: 2em;
+  font-weight: bold;
+  color: #1a4a8a;
+  text-shadow: 2px 2px 0 rgba(255,255,255,0.6);
+  margin: 8px 0;
+  letter-spacing: 2px;
+}
+
+/* ===== ちほうえらびがめん ===== */
+#screen-select { width: 100%; max-width: 660px; text-align: center; }
+
+.select-lead {
+  font-size: 1.25em;
+  color: #444;
+  margin-bottom: 16px;
+  font-weight: bold;
+}
+
+.region-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  padding: 0 8px;
+}
+
+.rbtn {
+  padding: 14px 18px;
+  font-size: 1.1em;
+  font-weight: bold;
+  border: none;
+  border-radius: 18px;
+  cursor: pointer;
+  color: white;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.35);
+  box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+  transition: transform .1s, box-shadow .1s;
+  min-width: 150px;
+  line-height: 1.4;
+}
+.rbtn:hover  { transform: translateY(-2px); box-shadow: 0 6px 0 rgba(0,0,0,0.2); }
+.rbtn:active { transform: translateY(2px);  box-shadow: 0 2px 0 rgba(0,0,0,0.2); }
+.rbtn small { display: block; font-size: 0.72em; opacity: 0.85; }
+
+/* ===== ゲームがめん ===== */
+#screen-game { width: 100%; max-width: 700px; display: none; flex-direction: column; align-items: center; }
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.question-box {
+  background: white;
+  border-radius: 20px;
+  padding: 10px 26px;
+  text-align: center;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.15);
+  min-width: 190px;
+}
+.q-lead { font-size: 0.95em; color: #888; }
+.q-ruby { font-size: 1.4em; color: #3366bb; letter-spacing: 4px; line-height: 1.1; }
+.q-kanji { font-size: 2.4em; font-weight: bold; color: #111; line-height: 1.15; }
+
+.score-box {
+  background: white;
+  border-radius: 16px;
+  padding: 8px 16px;
+  font-size: 1.15em;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+  white-space: nowrap;
+}
+
+.back-btn {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: none;
+  background: #8899aa;
+  color: white;
+  font-size: 0.95em;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.2);
+}
+.back-btn:active { transform: translateY(2px); box-shadow: none; }
+
+.map-wrap {
+  width: 100%;
+  position: relative;
+  touch-action: none;
+}
+
+svg#jmap {
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.12));
+}
+
+.pref {
+  stroke: white;
+  stroke-width: 1.2;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.pref:hover  { opacity: .82; }
+.pref.dim    { fill: #d0dde8 !important; cursor: default; }
+
+@keyframes flash-ok {
+  0%   { fill: #4caf50; }
+  40%  { fill: #a5d6a7; }
+  100% { fill: #4caf50; }
+}
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-6px); }
+  60%     { transform: translateX(6px); }
+}
+.pref.correct { animation: flash-ok .55s ease-out; fill: #4caf50 !important; }
+.pref.wrong   { animation: shake .4s ease-out; fill: #ef5350 !important; }
+
+/* 正解ポップアップ */
+#popup {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.38);
+  z-index: 200;
+  display: none;
+}
+.popup-box {
+  background: white;
+  border-radius: 24px;
+  padding: 32px 44px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  animation: pop-in .25s cubic-bezier(.22,1,.36,1);
+}
+@keyframes pop-in {
+  from { transform: scale(.6); opacity: 0; }
+  to   { transform: scale(1);  opacity: 1; }
+}
+.popup-emoji  { font-size: 3.5em; line-height: 1; }
+.popup-title  { font-size: 2em; font-weight: bold; margin: 8px 0 4px; }
+.popup-sub    { font-size: 1.1em; color: #555; margin-bottom: 18px; }
+.popup-next {
+  display: inline-block;
+  padding: 14px 36px;
+  background: #ff6b35;
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 1.3em;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgba(0,0,0,.2);
+}
+.popup-next:active { transform: translateY(2px); box-shadow: none; }
+
+/* 終了ポップアップ */
+#popup-end {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.45);
+  z-index: 300;
+  display: none;
+}
+.end-box {
+  background: white;
+  border-radius: 24px;
+  padding: 36px 48px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,.3);
+}
+.end-title { font-size: 2.2em; font-weight: bold; color: #1a4a8a; }
+.end-score { font-size: 1.5em; margin: 14px 0 22px; }
+.end-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.end-btn {
+  padding: 12px 28px;
+  border: none;
+  border-radius: 14px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0,0,0,.2);
+}
+.end-btn:active { transform: translateY(2px); box-shadow: none; }
+
+/* 紙吹雪 */
+.confetti-piece {
+  position: fixed;
+  width: 10px; height: 14px;
+  border-radius: 2px;
+  top: -20px;
+  animation: confetti-fall linear forwards;
+  z-index: 400;
+  pointer-events: none;
+}
+@keyframes confetti-fall {
+  to { top: 110vh; transform: rotate(720deg) translateX(60px); opacity: 0; }
+}
+
+/* 進捗バー */
+.progress-bar-wrap {
+  width: 100%;
+  height: 10px;
+  background: rgba(255,255,255,.5);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #42a5f5, #66bb6a);
+  border-radius: 8px;
+  transition: width .4s;
+}
+</style>
+</head>
+<body>
+
+<div class="title">🗾 にほんちずゲーム</div>
+
+<!-- ===== えらびがめん ===== -->
+<div id="screen-select">
+  <p class="select-lead">どのちほうで あそぶ？</p>
+  <div class="region-grid">
+    <button class="rbtn" style="background:#e74c3c;" onclick="startGame('all')">
+      ぜんこく<small>47 とどうふけん</small>
+    </button>
+    <button class="rbtn" style="background:#3498db;" onclick="startGame('hokkaido')">
+      ほっかいどう<small>北海道 1</small>
+    </button>
+    <button class="rbtn" style="background:#27ae60;" onclick="startGame('tohoku')">
+      とうほく<small>東北 6けん</small>
+    </button>
+    <button class="rbtn" style="background:#e67e22;" onclick="startGame('kanto')">
+      かんとう<small>関東 7とけん</small>
+    </button>
+    <button class="rbtn" style="background:#f39c12;" onclick="startGame('chubu')">
+      ちゅうぶ<small>中部 9けん</small>
+    </button>
+    <button class="rbtn" style="background:#e91e63;" onclick="startGame('kinki')">
+      きんき<small>近畿 7ふけん</small>
+    </button>
+    <button class="rbtn" style="background:#9b59b6;" onclick="startGame('chugoku')">
+      ちゅうごく<small>中国 5けん</small>
+    </button>
+    <button class="rbtn" style="background:#16a085;" onclick="startGame('shikoku')">
+      しこく<small>四国 4けん</small>
+    </button>
+    <button class="rbtn" style="background:#c0392b;" onclick="startGame('kyushu')">
+      きゅうしゅう・おきなわ<small>九州・沖縄 8けん</small>
+    </button>
+  </div>
+</div>
+
+<!-- ===== ゲームがめん ===== -->
+<div id="screen-game">
+
+  <div class="top-bar">
+    <div class="question-box">
+      <div class="q-lead">この けんは どこ？</div>
+      <div class="q-ruby" id="q-ruby">　</div>
+      <div class="q-kanji" id="q-kanji">　</div>
+    </div>
+    <div class="score-box">⭕ <span id="sc-ok">0</span>　❌ <span id="sc-ng">0</span></div>
+    <button class="back-btn" onclick="goHome()">もどる</button>
+  </div>
+
+  <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-fill" style="width:0%"></div></div>
+
+  <div class="map-wrap">
+    <svg id="jmap" viewBox="0 0 720 860" xmlns="http://www.w3.org/2000/svg">
+      <!-- paths injected by JS -->
+    </svg>
+  </div>
+
+</div>
+
+<!-- 正解ポップアップ -->
+<div id="popup">
+  <div class="popup-box">
+    <div class="popup-emoji" id="pu-emoji">⭕</div>
+    <div class="popup-title" id="pu-title">せいかい！</div>
+    <div class="popup-sub" id="pu-sub"></div>
+    <button class="popup-next" id="pu-btn" onclick="nextQ()">つぎへ！</button>
+  </div>
+</div>
+
+<!-- 終了ポップアップ -->
+<div id="popup-end">
+  <div class="end-box">
+    <div class="popup-emoji">🎊</div>
+    <div class="end-title">ぜんぶ クリア！</div>
+    <div class="end-score" id="end-score"></div>
+    <div class="end-btns">
+      <button class="end-btn" style="background:#3498db;color:white;" onclick="restartGame()">もういちど</button>
+      <button class="end-btn" style="background:#aaa;color:white;" onclick="goHome()">もどる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 都道府県データ =====
+// path: 簡略化 SVG ポリゴン (viewBox 0 0 720 860)
+// region: ちほう名
+const PREFS = [
+  // 北海道
+  { id:'hokkaido', name:'北海道', r:'ほっかいどう', region:'hokkaido',
+    c:'#3498db',
+    d:'M428,22 L505,18 L568,42 L608,72 L616,108 L598,140 L565,162 L528,170 L490,158 L455,132 L428,90 L415,52 Z' },
+
+  // 東北
+  { id:'aomori', name:'青森', r:'あおもり', region:'tohoku', c:'#27ae60',
+    d:'M375,178 L420,170 L458,180 L470,208 L462,238 L432,250 L400,250 L368,236 L358,208 Z' },
+  { id:'akita', name:'秋田', r:'あきた', region:'tohoku', c:'#27ae60',
+    d:'M352,192 L388,180 L420,188 L432,215 L438,252 L425,290 L402,320 L372,330 L342,312 L328,275 L335,242 L345,210 Z' },
+  { id:'iwate', name:'岩手', r:'いわて', region:'tohoku', c:'#27ae60',
+    d:'M435,245 L472,235 L495,252 L502,285 L492,325 L468,342 L438,342 L412,325 L405,282 L415,250 Z' },
+  { id:'yamagata', name:'山形', r:'やまがた', region:'tohoku', c:'#27ae60',
+    d:'M348,325 L392,315 L418,330 L422,362 L408,390 L378,400 L348,390 L326,368 L325,342 Z' },
+  { id:'miyagi', name:'宮城', r:'みやぎ', region:'tohoku', c:'#27ae60',
+    d:'M400,330 L445,322 L468,340 L472,372 L452,390 L415,395 L390,378 L385,352 Z' },
+  { id:'fukushima', name:'福島', r:'ふくしま', region:'tohoku', c:'#27ae60',
+    d:'M325,388 L380,378 L415,382 L458,378 L475,402 L475,440 L448,458 L402,465 L352,452 L322,430 L318,405 Z' },
+
+  // 関東
+  { id:'ibaraki', name:'茨城', r:'いばらき', region:'kanto', c:'#e67e22',
+    d:'M452,385 L498,378 L518,400 L522,438 L508,468 L478,478 L450,465 L438,438 L436,410 Z' },
+  { id:'tochigi', name:'栃木', r:'とちぎ', region:'kanto', c:'#e67e22',
+    d:'M405,378 L448,372 L465,388 L468,428 L448,448 L410,450 L385,435 L380,405 Z' },
+  { id:'gunma', name:'群馬', r:'ぐんま', region:'kanto', c:'#e67e22',
+    d:'M352,372 L400,365 L420,380 L422,412 L406,432 L372,438 L342,424 L335,398 L340,375 Z' },
+  { id:'saitama', name:'埼玉', r:'さいたま', region:'kanto', c:'#e67e22',
+    d:'M382,432 L418,425 L450,430 L462,452 L448,472 L415,482 L388,478 L368,462 L368,442 Z' },
+  { id:'chiba', name:'千葉', r:'ちば', region:'kanto', c:'#e67e22',
+    d:'M455,450 L492,440 L522,455 L528,488 L515,522 L492,532 L462,518 L445,492 L438,468 Z' },
+  { id:'tokyo', name:'東京', r:'とうきょう', region:'kanto', c:'#e67e22',
+    d:'M372,458 L418,450 L452,458 L454,482 L428,492 L395,492 L368,482 L365,465 Z' },
+  { id:'kanagawa', name:'神奈川', r:'かながわ', region:'kanto', c:'#e67e22',
+    d:'M362,482 L395,475 L428,480 L454,490 L458,515 L440,528 L408,532 L375,525 L352,510 L350,490 Z' },
+
+  // 中部
+  { id:'niigata', name:'新潟', r:'にいがた', region:'chubu', c:'#f39c12',
+    d:'M298,278 L342,262 L368,268 L395,292 L406,330 L395,365 L372,392 L342,398 L315,378 L298,345 L288,312 Z' },
+  { id:'toyama', name:'富山', r:'とやま', region:'chubu', c:'#f39c12',
+    d:'M275,398 L305,385 L338,390 L358,405 L365,428 L350,448 L322,455 L295,448 L275,430 Z' },
+  { id:'ishikawa', name:'石川', r:'いしかわ', region:'chubu', c:'#f39c12',
+    d:'M238,378 L268,368 L295,375 L305,398 L298,430 L282,450 L258,465 L232,458 L220,432 L225,405 Z' },
+  { id:'fukui', name:'福井', r:'ふくい', region:'chubu', c:'#f39c12',
+    d:'M230,458 L258,448 L285,455 L298,472 L298,498 L278,515 L252,518 L230,502 L220,478 Z' },
+  { id:'nagano', name:'長野', r:'ながの', region:'chubu', c:'#f39c12',
+    d:'M330,418 L365,408 L398,415 L420,438 L425,468 L418,502 L400,525 L370,538 L342,530 L322,512 L312,480 L308,448 Z' },
+  { id:'yamanashi', name:'山梨', r:'やまなし', region:'chubu', c:'#f39c12',
+    d:'M388,462 L422,455 L448,468 L455,498 L440,522 L412,532 L385,525 L365,510 L362,485 Z' },
+  { id:'shizuoka', name:'静岡', r:'しずおか', region:'chubu', c:'#f39c12',
+    d:'M368,522 L408,515 L438,528 L462,542 L465,568 L448,585 L418,588 L382,572 L355,552 L350,532 Z' },
+  { id:'aichi', name:'愛知', r:'あいち', region:'chubu', c:'#f39c12',
+    d:'M315,512 L355,502 L388,515 L410,532 L415,558 L398,572 L365,578 L335,565 L312,542 L308,520 Z' },
+  { id:'gifu', name:'岐阜', r:'ぎふ', region:'chubu', c:'#f39c12',
+    d:'M285,450 L325,438 L362,445 L382,462 L385,495 L370,518 L342,530 L312,522 L288,500 L278,472 Z' },
+
+  // 近畿
+  { id:'mie', name:'三重', r:'みえ', region:'kinki', c:'#e91e63',
+    d:'M298,558 L328,545 L360,552 L382,568 L385,598 L368,625 L342,638 L318,628 L295,608 L288,578 L292,560 Z' },
+  { id:'shiga', name:'滋賀', r:'しが', region:'kinki', c:'#e91e63',
+    d:'M272,510 L305,502 L328,518 L332,545 L315,562 L288,568 L265,555 L255,532 L258,515 Z' },
+  { id:'kyoto', name:'京都', r:'きょうと', region:'kinki', c:'#e91e63',
+    d:'M238,508 L272,500 L300,508 L315,525 L318,552 L302,568 L272,575 L245,565 L228,548 L225,525 Z' },
+  { id:'osaka', name:'大阪', r:'おおさか', region:'kinki', c:'#e91e63',
+    d:'M235,562 L268,555 L295,565 L302,585 L285,600 L258,605 L230,592 L225,572 Z' },
+  { id:'hyogo', name:'兵庫', r:'ひょうご', region:'kinki', c:'#e91e63',
+    d:'M185,525 L238,512 L268,520 L285,542 L285,570 L268,585 L235,595 L202,585 L182,562 L178,538 Z' },
+  { id:'nara', name:'奈良', r:'なら', region:'kinki', c:'#e91e63',
+    d:'M262,562 L295,555 L318,565 L322,592 L305,612 L278,620 L250,612 L238,588 L245,568 Z' },
+  { id:'wakayama', name:'和歌山', r:'わかやま', region:'kinki', c:'#e91e63',
+    d:'M238,605 L268,598 L298,608 L315,630 L312,658 L288,672 L260,668 L235,648 L225,622 Z' },
+
+  // 中国
+  { id:'tottori', name:'鳥取', r:'とっとり', region:'chugoku', c:'#9b59b6',
+    d:'M178,505 L212,498 L248,502 L260,520 L252,538 L218,548 L185,542 L168,525 Z' },
+  { id:'shimane', name:'島根', r:'しまね', region:'chugoku', c:'#9b59b6',
+    d:'M125,508 L165,500 L195,505 L208,522 L200,542 L168,552 L135,545 L110,528 L108,512 Z' },
+  { id:'okayama', name:'岡山', r:'おかやま', region:'chugoku', c:'#9b59b6',
+    d:'M195,538 L242,528 L262,542 L268,562 L252,578 L222,582 L192,572 L178,552 Z' },
+  { id:'hiroshima', name:'広島', r:'ひろしま', region:'chugoku', c:'#9b59b6',
+    d:'M148,542 L190,532 L218,545 L225,565 L210,582 L178,590 L145,578 L130,560 L132,545 Z' },
+  { id:'yamaguchi', name:'山口', r:'やまぐち', region:'chugoku', c:'#9b59b6',
+    d:'M105,552 L142,542 L168,555 L178,575 L162,595 L132,605 L105,595 L88,578 L90,558 Z' },
+
+  // 四国
+  { id:'kagawa', name:'香川', r:'かがわ', region:'shikoku', c:'#16a085',
+    d:'M228,572 L268,562 L295,572 L302,592 L285,608 L252,612 L222,598 L218,582 Z' },
+  { id:'tokushima', name:'徳島', r:'とくしま', region:'shikoku', c:'#16a085',
+    d:'M262,592 L298,582 L322,598 L328,622 L310,645 L280,648 L252,635 L242,612 Z' },
+  { id:'ehime', name:'愛媛', r:'えひめ', region:'shikoku', c:'#16a085',
+    d:'M188,582 L225,572 L252,585 L262,612 L248,635 L218,642 L188,628 L172,610 L172,592 Z' },
+  { id:'kochi', name:'高知', r:'こうち', region:'shikoku', c:'#16a085',
+    d:'M222,625 L262,615 L298,625 L315,648 L312,675 L282,688 L248,685 L218,668 L205,645 L210,628 Z' },
+
+  // 九州・沖縄
+  { id:'fukuoka', name:'福岡', r:'ふくおか', region:'kyushu', c:'#c0392b',
+    d:'M108,598 L150,590 L175,605 L180,628 L162,645 L130,652 L102,642 L92,622 Z' },
+  { id:'saga', name:'佐賀', r:'さが', region:'kyushu', c:'#c0392b',
+    d:'M86,625 L112,620 L138,630 L142,652 L125,668 L98,672 L78,655 L76,635 Z' },
+  { id:'nagasaki', name:'長崎', r:'ながさき', region:'kyushu', c:'#c0392b',
+    d:'M62,632 L90,625 L112,638 L115,662 L98,680 L72,685 L50,668 L48,648 Z' },
+  { id:'oita', name:'大分', r:'おおいた', region:'kyushu', c:'#c0392b',
+    d:'M162,615 L205,608 L228,625 L232,652 L218,672 L185,680 L155,668 L145,645 L150,620 Z' },
+  { id:'kumamoto', name:'熊本', r:'くまもと', region:'kyushu', c:'#c0392b',
+    d:'M118,652 L162,642 L188,658 L195,685 L178,710 L148,720 L122,710 L105,685 L105,662 Z' },
+  { id:'miyazaki', name:'宮崎', r:'みやざき', region:'kyushu', c:'#c0392b',
+    d:'M182,678 L222,668 L248,685 L252,715 L238,745 L208,755 L178,742 L158,718 L155,682 Z' },
+  { id:'kagoshima', name:'鹿児島', r:'かごしま', region:'kyushu', c:'#c0392b',
+    d:'M138,708 L180,700 L208,718 L215,748 L200,775 L170,785 L142,768 L125,742 L122,715 Z' },
+  { id:'okinawa', name:'沖縄', r:'おきなわ', region:'kyushu', c:'#c0392b',
+    d:'M22,788 L148,788 L148,840 L22,840 Z' },
+];
+
+const REGION_IDS = {
+  all:      PREFS.map(p=>p.id),
+  hokkaido: PREFS.filter(p=>p.region==='hokkaido').map(p=>p.id),
+  tohoku:   PREFS.filter(p=>p.region==='tohoku').map(p=>p.id),
+  kanto:    PREFS.filter(p=>p.region==='kanto').map(p=>p.id),
+  chubu:    PREFS.filter(p=>p.region==='chubu').map(p=>p.id),
+  kinki:    PREFS.filter(p=>p.region==='kinki').map(p=>p.id),
+  chugoku:  PREFS.filter(p=>p.region==='chugoku').map(p=>p.id),
+  shikoku:  PREFS.filter(p=>p.region==='shikoku').map(p=>p.id),
+  kyushu:   PREFS.filter(p=>p.region==='kyushu').map(p=>p.id),
+};
+
+// ===== ゲーム状態 =====
+let state = { region:null, active:[], queue:[], current:null, ok:0, ng:0, total:0, answered:false };
+
+function shuffle(a) {
+  const b=[...a];
+  for(let i=b.length-1;i>0;i--){const j=Math.random()*i|0;[b[i],b[j]]=[b[j],b[i]];}
+  return b;
+}
+
+function pref(id){ return PREFS.find(p=>p.id===id); }
+
+// ===== 地図を描く =====
+function buildMap() {
+  const svg = document.getElementById('jmap');
+  svg.innerHTML = '';
+
+  // 海（背景）
+  const sea = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  sea.setAttribute('width','720'); sea.setAttribute('height','860');
+  sea.setAttribute('fill','#a8d8ea'); sea.setAttribute('rx','12');
+  svg.appendChild(sea);
+
+  // 沖縄枠ラベル
+  const olab = mkText(85, 784, '（おきなわ）', 8, '#fff');
+  svg.appendChild(olab);
+
+  // 全prefecture描画
+  PREFS.forEach(p=>{
+    const el = document.createElementNS('http://www.w3.org/2000/svg','path');
+    el.setAttribute('d', p.d);
+    el.setAttribute('fill', p.c);
+    el.setAttribute('class', 'pref');
+    el.setAttribute('id', 'p-'+p.id);
+    el.setAttribute('data-id', p.id);
+    el.addEventListener('click', ()=>onClick(p.id));
+    el.addEventListener('touchstart', e=>{ e.preventDefault(); onClick(p.id); }, {passive:false});
+    svg.appendChild(el);
+
+    // 県名ラベル（小さく）
+    const c = centroid(p.d);
+    if(c){
+      const t = mkText(c.x, c.y+3, p.name, 7, 'rgba(0,0,0,0.55)');
+      t.setAttribute('pointer-events','none');
+      svg.appendChild(t);
+    }
+  });
+}
+
+function mkText(x,y,txt,size,fill){
+  const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+  t.setAttribute('x',x); t.setAttribute('y',y);
+  t.setAttribute('font-size',size); t.setAttribute('fill',fill);
+  t.setAttribute('text-anchor','middle'); t.textContent=txt;
+  return t;
+}
+
+function centroid(d){
+  const pts=[];
+  const re=/[ML]\s*([\d.]+)[,\s]+([\d.]+)/g; let m;
+  while((m=re.exec(d))!==null) pts.push([+m[1],+m[2]]);
+  if(!pts.length)return null;
+  return {x:pts.reduce((s,p)=>s+p[0],0)/pts.length,
+          y:pts.reduce((s,p)=>s+p[1],0)/pts.length};
+}
+
+// ===== 色リセット =====
+function resetColors(){
+  state.active.forEach(id=>{
+    const el=document.getElementById('p-'+id);
+    if(!el)return;
+    el.setAttribute('fill', pref(id).c);
+    el.classList.remove('correct','wrong','dim');
+  });
+}
+
+// ===== 問題を出す =====
+function showQ(){
+  state.answered=false;
+  resetColors();
+
+  // 非アクティブをグレーに
+  PREFS.forEach(p=>{
+    if(!state.active.includes(p.id)){
+      const el=document.getElementById('p-'+p.id);
+      if(el){ el.setAttribute('fill','#c8d8e8'); el.classList.add('dim'); }
+    }
+  });
+
+  const p=pref(state.current);
+  document.getElementById('q-ruby').textContent = p.r;
+  document.getElementById('q-kanji').textContent = p.name;
+  updateProg();
+}
+
+function updateProg(){
+  const done = state.total - state.queue.length;
+  document.getElementById('prog-fill').style.width = (done/state.total*100)+'%';
+}
+
+// ===== クリック処理 =====
+function onClick(id){
+  if(state.answered) return;
+  if(!state.active.includes(id)) return;
+
+  const el=document.getElementById('p-'+id);
+
+  if(id===state.current){
+    state.answered=true; state.ok++;
+    el.classList.add('correct');
+    el.setAttribute('fill','#4caf50');
+    updateScore();
+    playBeep(true);
+    confetti();
+    setTimeout(()=>{ if(state.queue.length===0){ showEnd(); } else { nextQ(); } }, 900);
+  } else {
+    state.ng++;
+    el.classList.add('wrong');
+    el.setAttribute('fill','#ef5350');
+    updateScore();
+    playBeep(false);
+    setTimeout(()=>{
+      el.classList.remove('wrong');
+      el.setAttribute('fill', pref(id).c);
+    }, 500);
+  }
+}
+
+function nextQ(){
+  document.getElementById('popup').style.display='none';
+  if(state.queue.length===0){ showEnd(); return; }
+  state.current=state.queue.pop();
+  showQ();
+}
+
+// ===== 終了 =====
+function showEnd(){
+  document.getElementById('end-score').textContent =
+    `⭕ ${state.ok}かい　❌ ${state.ng}かい`;
+  document.getElementById('popup-end').style.display='flex';
+  confetti(); confetti(); confetti();
+}
+
+function restartGame(){ startGame(state.region); }
+
+// ===== スコア =====
+function updateScore(){
+  document.getElementById('sc-ok').textContent=state.ok;
+  document.getElementById('sc-ng').textContent=state.ng;
+}
+
+// ===== ゲーム開始 =====
+function startGame(region){
+  state.region=region;
+  state.active=REGION_IDS[region];
+  state.queue=shuffle([...state.active]);
+  state.current=state.queue.pop();
+  state.ok=0; state.ng=0;
+  state.total=state.active.length;
+  updateScore();
+  buildMap();
+  document.getElementById('screen-select').style.display='none';
+  document.getElementById('screen-game').style.display='flex';
+  document.getElementById('popup-end').style.display='none';
+  showQ();
+}
+
+function goHome(){
+  document.getElementById('screen-game').style.display='none';
+  document.getElementById('screen-select').style.display='block';
+  document.getElementById('popup').style.display='none';
+  document.getElementById('popup-end').style.display='none';
+}
+
+// ===== 音 (Web Audio API) =====
+let actx;
+function getActx(){ return actx||(actx=new(window.AudioContext||window.webkitAudioContext)()); }
+function playBeep(ok){
+  try{
+    const ctx=getActx();
+    const g=ctx.createGain(); g.connect(ctx.destination);
+    const o=ctx.createOscillator(); o.connect(g);
+    o.type='sine';
+    if(ok){
+      o.frequency.setValueAtTime(523,ctx.currentTime);
+      o.frequency.setValueAtTime(659,ctx.currentTime+0.12);
+      o.frequency.setValueAtTime(784,ctx.currentTime+0.24);
+      g.gain.setValueAtTime(0.25,ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.5);
+      o.start(); o.stop(ctx.currentTime+0.5);
+    } else {
+      o.frequency.setValueAtTime(294,ctx.currentTime);
+      o.frequency.setValueAtTime(220,ctx.currentTime+0.18);
+      g.gain.setValueAtTime(0.25,ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.35);
+      o.start(); o.stop(ctx.currentTime+0.35);
+    }
+  }catch(e){}
+}
+
+// ===== 紙吹雪 =====
+const COLORS=['#f44336','#e91e63','#9c27b0','#3f51b5','#2196f3','#00bcd4','#4caf50','#ffeb3b','#ff9800'];
+function confetti(){
+  for(let i=0;i<28;i++){
+    const d=document.createElement('div');
+    d.className='confetti-piece';
+    d.style.left=Math.random()*100+'vw';
+    d.style.background=COLORS[Math.random()*COLORS.length|0];
+    d.style.animationDuration=(1.2+Math.random()*1.2)+'s';
+    d.style.animationDelay=(Math.random()*0.5)+'s';
+    d.style.width=(6+Math.random()*8)+'px';
+    d.style.height=(8+Math.random()*10)+'px';
+    document.body.appendChild(d);
+    d.addEventListener('animationend',()=>d.remove());
+  }
+}
+</script>
+</body>
+</html>
