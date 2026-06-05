@@ -152,6 +152,48 @@ svg#jmap { width: 100%; height: auto; display: block; border-radius: 14px;
 @keyframes confetti-fall {
   to { top: 110vh; transform: rotate(720deg) translateX(60px); opacity: 0; }
 }
+
+/* ズームヒント */
+#zoom-hint {
+  display: none; position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20,20,60,0.82); color: white;
+  padding: 10px 12px 10px 24px; border-radius: 24px;
+  font-size: 1.05em; font-weight: bold; gap: 12px;
+  z-index: 250; align-items: center; white-space: nowrap;
+}
+#zoom-cancel {
+  padding: 5px 15px; border-radius: 12px; border: none;
+  background: rgba(255,255,255,0.22); color: white;
+  font-size: 0.88em; cursor: pointer; pointer-events: auto;
+}
+#zoom-cancel:active { background: rgba(255,255,255,0.4); }
+
+/* 花火スパーク */
+.fw-spark {
+  position: fixed; width: 9px; height: 9px; border-radius: 50%;
+  z-index: 450; pointer-events: none;
+  animation: fw-burst linear forwards;
+}
+@keyframes fw-burst {
+  0%   { transform: translate(0,0) scale(1); opacity: 1; }
+  65%  { opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(0.15); opacity: 0; }
+}
+
+/* ユニコーン */
+.unicorn-fly {
+  position: fixed; top: 28vh; left: 0;
+  font-size: 80px; line-height: 1;
+  z-index: 460; pointer-events: none;
+  animation: unicorn-cross 2.6s ease-in-out forwards;
+}
+@keyframes unicorn-cross {
+  0%   { transform: translateX(-220px); opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { transform: translateX(115vw); opacity: 0; }
+}
 </style>
 </head>
 <body>
@@ -220,14 +262,21 @@ svg#jmap { width: 100%; height: auto; display: block; border-radius: 14px;
 <!-- 終了ポップアップ -->
 <div id="popup-end">
   <div class="end-box">
-    <div style="font-size:3em;">🎊</div>
-    <div class="end-title">ぜんぶ クリア！</div>
+    <div id="end-icon" style="font-size:3em;">🎊</div>
+    <div class="end-title" id="end-title">ぜんぶ クリア！</div>
+    <div id="end-perfect" style="display:none;font-size:1.5em;color:#e040fb;font-weight:bold;margin:4px 0;">🌟 かんぺき！ 🌟</div>
     <div class="end-score" id="end-score"></div>
     <div class="end-btns">
       <button class="end-btn" style="background:#3498db;color:white;" onclick="restartGame()">もういちど</button>
       <button class="end-btn" style="background:#aaa;color:white;" onclick="goHome()">もどる</button>
     </div>
   </div>
+</div>
+
+<!-- ズームヒント -->
+<div id="zoom-hint">
+  <span>もういちどクリックで かくてい！</span>
+  <button id="zoom-cancel" onclick="cancelZoom()">もどす</button>
 </div>
 
 <script>
@@ -294,8 +343,12 @@ const REGION_IDS = {
   kyushu:   PREFS.filter(p => p.region === 'kyushu').map(p => p.id),
 };
 
+const SET_SIZE = 5; // 1セットの問題数
+
 // ===== ゲーム状態 =====
 let state = { region: null, active: [], queue: [], current: null, ok: 0, ng: 0, total: 0 };
+let zoomMode  = false;  // ズーム中フラグ
+let pendingId = null;   // 1クリック目で選んだ県
 
 // ===== GeoJSON キャッシュ =====
 let geoCache = null;       // FeatureCollection
@@ -381,10 +434,12 @@ function buildMap() {
   svg.attr('viewBox', `0 0 ${MAP_W} ${MAP_H}`);
   svg.selectAll('*').remove();
 
-  // 海の背景
+  // 海の背景（クリックでズームキャンセル）
   svg.append('rect')
     .attr('width', MAP_W).attr('height', MAP_H)
-    .attr('fill', '#a8d8ea').attr('rx', 14);
+    .attr('fill', '#a8d8ea').attr('rx', 14)
+    .on('click', () => { if (zoomMode) cancelZoom(); })
+    .on('touchstart', function(e) { e.preventDefault(); if (zoomMode) cancelZoom(); }, { passive: false });
 
   // 本土（沖縄除く）のfeatures
   const mainFeatures = features.filter(f => f.properties.id !== 47);
@@ -517,6 +572,41 @@ function buildMap() {
   }
 }
 
+// ===== ズーム =====
+function zoomToPref(id) {
+  const pref = prefById(id);
+  const rawFeat = featuresCache ? featuresCache[pref.code] : null;
+  if (!rawFeat || !pathGenCache) return;
+  const zFeat = filterFeaturePolygons(rawFeat, FIT_THRESHOLD) || rawFeat;
+  const b = pathGenCache.bounds(zFeat);
+  const fw = b[1][0] - b[0][0], fh = b[1][1] - b[0][1];
+  const pad = Math.max(fw, fh) * 0.9 + 70;
+  const vx  = Math.max(0, b[0][0] - pad);
+  const vy  = Math.max(0, b[0][1] * SCALE_Y - pad);
+  const vx2 = Math.min(MAP_W, b[1][0] + pad);
+  const vy2 = Math.min(MAP_H, b[1][1] * SCALE_Y + pad);
+  d3.select('#jmap').transition().duration(350)
+    .attr('viewBox', `${vx} ${vy} ${vx2 - vx} ${vy2 - vy}`);
+}
+
+function zoomOut() {
+  d3.select('#jmap').transition().duration(350)
+    .attr('viewBox', `0 0 ${MAP_W} ${MAP_H}`);
+}
+
+function showZoomHint() { document.getElementById('zoom-hint').style.display = 'flex'; }
+function hideZoomHint() { document.getElementById('zoom-hint').style.display = 'none';  }
+
+function cancelZoom() {
+  if (!zoomMode) return;
+  if (pendingId) {
+    const prev = document.getElementById('p-' + pendingId);
+    if (prev) prev.setAttribute('fill', state.active.includes(pendingId) ? prefById(pendingId).c : '#b8ccd8');
+  }
+  zoomMode = false; pendingId = null;
+  zoomOut(); hideZoomHint();
+}
+
 // ===== 色のリセット =====
 function resetPrefColors() {
   PREFS.forEach(pref => {
@@ -548,15 +638,33 @@ function updateScore() {
   document.getElementById('sc-ng').textContent = state.ng;
 }
 
-// ===== クリック処理 =====
+// ===== クリック処理（2クリック方式） =====
 function onClick(id) {
   if (!state.active.includes(id)) return;
-
   const el = document.getElementById('p-' + id);
   if (!el) return;
 
+  if (!zoomMode) {
+    // 1クリック目：仮選択ハイライト＋ズームイン
+    zoomMode  = true;
+    pendingId = id;
+    el.setAttribute('fill', '#ffd700');
+    if (id !== 'okinawa') zoomToPref(id);
+    showZoomHint();
+  } else {
+    // 2クリック目：確定
+    if (pendingId && pendingId !== id) {
+      const prev = document.getElementById('p-' + pendingId);
+      if (prev) prev.setAttribute('fill', state.active.includes(pendingId) ? prefById(pendingId).c : '#b8ccd8');
+    }
+    zoomMode = false; pendingId = null;
+    zoomOut(); hideZoomHint();
+    processAnswer(id, el);
+  }
+}
+
+function processAnswer(id, el) {
   if (id === state.current) {
-    // 正解
     state.ok++;
     el.setAttribute('fill', '#4caf50');
     el.classList.add('correct');
@@ -568,7 +676,6 @@ function onClick(id) {
       else nextQ();
     }, 800);
   } else {
-    // 不正解
     state.ng++;
     const origColor = prefById(id).c;
     el.setAttribute('fill', '#ef5350');
@@ -585,6 +692,8 @@ function onClick(id) {
 // ===== 次の問題 =====
 function nextQ() {
   if (state.queue.length === 0) { showEnd(); return; }
+  zoomMode = false; pendingId = null;
+  zoomOut(); hideZoomHint();
   state.current = state.queue.pop();
   showQ();
 }
@@ -593,8 +702,58 @@ function nextQ() {
 function showEnd() {
   document.getElementById('end-score').textContent =
     `⭕ ${state.ok}かい　❌ ${state.ng}かい`;
+  const perfect = state.ng === 0 && state.ok > 0;
+  document.getElementById('end-perfect').style.display = perfect ? 'block' : 'none';
+  document.getElementById('end-icon').textContent  = perfect ? '🦄' : '🎊';
+  document.getElementById('end-title').textContent = perfect ? 'パーフェクト！' : 'ぜんぶ クリア！';
   document.getElementById('popup-end').style.display = 'flex';
   confetti(); confetti();
+  if (perfect) showPerfectEffect();
+}
+
+// ===== パーフェクト演出 =====
+function showPerfectEffect() {
+  // 花火を8発、時間差で打ち上げ
+  [
+    [18,22],[72,18],[48,38],[82,32],
+    [28,55],[62,18],[88,48],[38,28]
+  ].forEach(([xp, yp], i) => {
+    setTimeout(() => {
+      launchFirework(
+        window.innerWidth  * xp / 100,
+        window.innerHeight * yp / 100
+      );
+    }, i * 260);
+  });
+  // ユニコーンが2回横断
+  setTimeout(showUnicorn, 250);
+  setTimeout(showUnicorn, 1900);
+}
+
+function launchFirework(cx, cy) {
+  const COLORS = ['#ffdd00','#ff6600','#ff0055','#00ccff','#00ff88','#cc00ff','#ffffff','#ffaaff'];
+  for (let i = 0; i < 32; i++) {
+    const angle = (i / 32) * Math.PI * 2;
+    const dist  = 65 + Math.random() * 85;
+    const p = document.createElement('div');
+    p.className = 'fw-spark';
+    p.style.left = cx + 'px';
+    p.style.top  = cy + 'px';
+    p.style.background = COLORS[Math.random() * COLORS.length | 0];
+    p.style.animationDuration = (0.5 + Math.random() * 0.5) + 's';
+    p.style.setProperty('--tx', (Math.cos(angle) * dist) + 'px');
+    p.style.setProperty('--ty', (Math.sin(angle) * dist + 30) + 'px');
+    document.body.appendChild(p);
+    p.addEventListener('animationend', () => p.remove());
+  }
+}
+
+function showUnicorn() {
+  const u = document.createElement('div');
+  u.className = 'unicorn-fly';
+  u.textContent = '🌈🦄';
+  document.body.appendChild(u);
+  u.addEventListener('animationend', () => u.remove());
 }
 
 function restartGame() {
@@ -606,10 +765,13 @@ function restartGame() {
 async function startGame(region) {
   state.region  = region;
   state.active  = REGION_IDS[region];
-  state.queue   = shuffle([...state.active]);
+  const n = Math.min(SET_SIZE, state.active.length);
+  state.queue   = shuffle([...state.active]).slice(0, n);
   state.current = state.queue.pop();
   state.ok = 0; state.ng = 0;
-  state.total = state.active.length;
+  state.total   = n;
+  zoomMode = false; pendingId = null;
+  hideZoomHint();
 
   updateScore();
 
@@ -622,6 +784,8 @@ async function startGame(region) {
 }
 
 function goHome() {
+  zoomMode = false; pendingId = null;
+  zoomOut(); hideZoomHint();
   document.getElementById('screen-game').style.display  = 'none';
   document.getElementById('screen-select').style.display = 'block';
   document.getElementById('popup-end').style.display    = 'none';
